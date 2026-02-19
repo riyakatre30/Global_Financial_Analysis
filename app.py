@@ -85,7 +85,7 @@ fig = px.line(
     filtered_df,
     x="Date",
     y="Close",
-    color="Stock",
+    color="Company",
     template="plotly_dark"
 )
 
