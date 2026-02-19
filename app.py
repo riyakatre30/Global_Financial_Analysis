@@ -2,6 +2,7 @@ import streamlit as st
 import pandas as pd
 import plotly.graph_objects as go
 import plotly.express as px
+import os
 
 st.set_page_config(page_title="Global Trading Dashboard",
                    layout="wide",
@@ -11,32 +12,10 @@ st.set_page_config(page_title="Global Trading Dashboard",
 
 @st.cache_data
 def load_data():
-    india = pd.read_csv("Stock_NS.csv")
-    usa = pd.read_csv("Stock_USA.csv")
-    canada = pd.read_csv("Stock_Canada.csv")
-    germany = pd.read_csv("Stock_Germany.csv")
-    france = pd.read_csv("Stock_France.csv")
-    shanghai = pd.read_csv("Stock_Shanghai.csv")
-    hongkong = pd.read_csv("Stock_HK.csv")
-    london = pd.read_csv("Stock_L.csv")
-    tokyo = pd.read_csv("Stock_Tokyo.csv")
-    australia = pd.read_csv("Stock_Australia.csv")
+    base_path = os.path.dirname(os.path.abspath(__file__))
+    file_path = os.path.join(base_path, "Global_Stock_Data.csv")
 
-    india["Country"] = "India"
-    usa["Country"] = "USA"
-    canada["Country"] = "Canada"
-    germany["Country"] = "Germany"
-    france["Country"] = "France"
-    shanghai["Country"] = "Shanghai"
-    hongkong["Country"] = "Hong Kong"
-    london["Country"] = "London"
-    tokyo["Country"] = "Tokyo"
-    australia["Country"] = "Australia"
-
-    df = pd.concat([india, usa, canada, germany, france,
-                    shanghai, hongkong, london, tokyo,
-                    australia], axis=0)
-
+    df = pd.read_csv(file_path)
     df["Date"] = pd.to_datetime(df["Date"])
     return df
 
@@ -44,7 +23,7 @@ df = load_data()
 
 # -------------------- SIDEBAR --------------------
 
-st.sidebar.title("🌍 Global Market Filter")
+st.sidebar.title("🌍 Market Filters")
 
 country = st.sidebar.multiselect(
     "Select Country",
@@ -55,7 +34,7 @@ country = st.sidebar.multiselect(
 filtered_country = df[df["Country"].isin(country)]
 
 stock = st.sidebar.multiselect(
-    "Select Company (Stock)",
+    "Select Company",
     options=filtered_country["Stock"].unique(),
     default=filtered_country["Stock"].unique()[:3]
 )
@@ -80,7 +59,7 @@ filtered_df = filtered_df[
 # -------------------- TITLE --------------------
 
 st.title("📊 Global Stock Trading Dashboard")
-st.markdown("### Live Market Style Analysis")
+st.markdown("#### Professional Market Analysis Platform")
 
 # -------------------- KPIs --------------------
 
@@ -89,7 +68,7 @@ col1, col2, col3, col4 = st.columns(4)
 latest_price = filtered_df["Close"].iloc[-1]
 high_price = filtered_df["High"].max()
 low_price = filtered_df["Low"].min()
-change = ((filtered_df["Close"].iloc[-1] - 
+change = ((filtered_df["Close"].iloc[-1] -
            filtered_df["Close"].iloc[0]) /
            filtered_df["Close"].iloc[0]) * 100
 
@@ -102,11 +81,13 @@ col4.metric("Change %", f"{change:.2f}%")
 
 st.subheader("📈 Stock Price Comparison")
 
-fig = px.line(filtered_df,
-              x="Date",
-              y="Close",
-              color="Stock",
-              template="plotly_dark")
+fig = px.line(
+    filtered_df,
+    x="Date",
+    y="Close",
+    color="Stock",
+    template="plotly_dark"
+)
 
 fig.update_layout(
     xaxis_rangeslider_visible=True,
@@ -115,37 +96,63 @@ fig.update_layout(
 
 st.plotly_chart(fig, use_container_width=True)
 
-# -------------------- CANDLESTICK CHART --------------------
+# -------------------- MOVING AVERAGE --------------------
+
+st.subheader("📉 Moving Average")
+
+ma_stock = st.selectbox("Select Stock for MA", filtered_df["Stock"].unique())
+
+ma_df = filtered_df[filtered_df["Stock"] == ma_stock].copy()
+
+ma_df["MA50"] = ma_df["Close"].rolling(50).mean()
+ma_df["MA200"] = ma_df["Close"].rolling(200).mean()
+
+fig_ma = go.Figure()
+
+fig_ma.add_trace(go.Scatter(
+    x=ma_df["Date"], y=ma_df["Close"],
+    mode='lines', name='Close Price'
+))
+
+fig_ma.add_trace(go.Scatter(
+    x=ma_df["Date"], y=ma_df["MA50"],
+    mode='lines', name='MA50'
+))
+
+fig_ma.add_trace(go.Scatter(
+    x=ma_df["Date"], y=ma_df["MA200"],
+    mode='lines', name='MA200'
+))
+
+fig_ma.update_layout(template="plotly_dark", height=500)
+
+st.plotly_chart(fig_ma, use_container_width=True)
+
+# -------------------- CANDLESTICK --------------------
 
 st.subheader("🕯️ Candlestick Chart")
 
-stock_choice = st.selectbox("Select Stock for Candlestick",
-                            filtered_df["Stock"].unique())
-
-candlestick_df = filtered_df[filtered_df["Stock"] == stock_choice]
-
-fig2 = go.Figure(data=[go.Candlestick(
-    x=candlestick_df["Date"],
-    open=candlestick_df["Open"],
-    high=candlestick_df["High"],
-    low=candlestick_df["Low"],
-    close=candlestick_df["Close"]
+fig_candle = go.Figure(data=[go.Candlestick(
+    x=ma_df["Date"],
+    open=ma_df["Open"],
+    high=ma_df["High"],
+    low=ma_df["Low"],
+    close=ma_df["Close"]
 )])
 
-fig2.update_layout(
-    template="plotly_dark",
-    height=500
-)
+fig_candle.update_layout(template="plotly_dark", height=500)
 
-st.plotly_chart(fig2, use_container_width=True)
+st.plotly_chart(fig_candle, use_container_width=True)
 
-# -------------------- VOLUME CHART --------------------
+# -------------------- VOLUME --------------------
 
 st.subheader("📊 Volume Analysis")
 
-fig3 = px.bar(candlestick_df,
-              x="Date",
-              y="Volume",
-              template="plotly_dark")
+fig_volume = px.bar(
+    ma_df,
+    x="Date",
+    y="Volume",
+    template="plotly_dark"
+)
 
-st.plotly_chart(fig3, use_container_width=True)
+st.plotly_chart(fig_volume, use_container_width=True)
