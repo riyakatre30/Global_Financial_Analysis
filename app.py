@@ -6,7 +6,7 @@ import os
 
 st.set_page_config(page_title="Global Trading Dashboard",
                    layout="wide",
-                   page_icon="📈")
+                   page_icon="📊")
 
 # -------------------- LOAD DATA --------------------
 
@@ -14,7 +14,6 @@ st.set_page_config(page_title="Global Trading Dashboard",
 def load_data():
     base_path = os.path.dirname(os.path.abspath(__file__))
     file_path = os.path.join(base_path, "Global_Stock_Data.csv")
-
     df = pd.read_csv(file_path)
     df["Date"] = pd.to_datetime(df["Date"])
     return df
@@ -23,136 +22,94 @@ df = load_data()
 
 # -------------------- SIDEBAR --------------------
 
-st.sidebar.title("🌍 Market Filters")
+st.sidebar.title("🌍 Market Selector")
 
-country = st.sidebar.multiselect(
+country = st.sidebar.selectbox(
     "Select Country",
-    options=df["Country"].unique(),
-    default=df["Country"].unique()
+    df["Country"].unique()
 )
 
-filtered_country = df[df["Country"].isin(country)]
+filtered_country = df[df["Country"] == country]
 
-stock = st.sidebar.multiselect(
+company = st.sidebar.selectbox(
     "Select Company",
-    options=filtered_country["Company"].unique(),
-    default=filtered_country["Company"].unique()[:3]
+    filtered_country["Company"].unique()
 )
 
-filtered_df = filtered_country[filtered_country["Company"].isin(stock)]
+filtered_df = filtered_country[filtered_country["Company"] == company]
 
-start_date = st.sidebar.date_input(
-    "Start Date",
-    value=filtered_df["Date"].min()
-)
+# -------------------- HEADER --------------------
 
-end_date = st.sidebar.date_input(
-    "End Date",
-    value=filtered_df["Date"].max()
-)
+st.title(f"📈 {company} Stock Dashboard")
+st.markdown(f"#### Country: {country}")
 
-filtered_df = filtered_df[
-    (filtered_df["Date"] >= pd.to_datetime(start_date)) &
-    (filtered_df["Date"] <= pd.to_datetime(end_date))
-]
-
-# -------------------- TITLE --------------------
-
-st.title("📊 Global Stock Trading Dashboard")
-st.markdown("#### Professional Market Analysis Platform")
-
-# -------------------- KPIs --------------------
+# -------------------- KPI CARDS --------------------
 
 col1, col2, col3, col4 = st.columns(4)
 
 latest_price = filtered_df["Close"].iloc[-1]
 high_price = filtered_df["High"].max()
 low_price = filtered_df["Low"].min()
-change = ((filtered_df["Close"].iloc[-1] -
-           filtered_df["Close"].iloc[0]) /
-           filtered_df["Close"].iloc[0]) * 100
+avg_price = filtered_df["Close"].mean()
 
-col1.metric("Latest Price", f"{latest_price:.2f}")
-col2.metric("Highest Price", f"{high_price:.2f}")
-col3.metric("Lowest Price", f"{low_price:.2f}")
-col4.metric("Change %", f"{change:.2f}%")
+col1.metric("💰 Latest Price", f"{latest_price:.2f}")
+col2.metric("🔼 Highest", f"{high_price:.2f}")
+col3.metric("🔽 Lowest", f"{low_price:.2f}")
+col4.metric("📊 Average", f"{avg_price:.2f}")
 
-# -------------------- MULTI LINE CHART --------------------
+# -------------------- MAIN DASHBOARD LAYOUT --------------------
 
-st.subheader("📈 Stock Price Comparison")
+left_col, right_col = st.columns([2, 1])
 
-fig = px.line(
-    filtered_df,
-    x="Date",
-    y="Close",
-    color="Company",
-    template="plotly_dark"
-)
+# ---------- PRICE CHART (Google Style) ----------
+with left_col:
 
-fig.update_layout(
-    xaxis_rangeslider_visible=True,
-    height=500
-)
+    chart_type = st.radio("Chart Type", ["Line Chart", "Candlestick"], horizontal=True)
 
-st.plotly_chart(fig, use_container_width=True)
+    if chart_type == "Line Chart":
+        fig = px.line(
+            filtered_df,
+            x="Date",
+            y="Close",
+            template="plotly_dark"
+        )
+    else:
+        fig = go.Figure(data=[go.Candlestick(
+            x=filtered_df["Date"],
+            open=filtered_df["Open"],
+            high=filtered_df["High"],
+            low=filtered_df["Low"],
+            close=filtered_df["Close"]
+        )])
 
-# -------------------- MOVING AVERAGE --------------------
+        fig.update_layout(template="plotly_dark")
 
-st.subheader("📉 Moving Average")
+    fig.update_layout(height=500)
+    st.plotly_chart(fig, use_container_width=True)
 
-ma_stock = st.selectbox("Select Stock for MA", filtered_df["Company"].unique())
+# ---------- PIE CHART SECTION ----------
+with right_col:
 
-ma_df = filtered_df[filtered_df["Company"] == ma_stock].copy()
+    st.subheader("📌 Price Distribution")
 
-ma_df["MA50"] = ma_df["Close"].rolling(50).mean()
-ma_df["MA200"] = ma_df["Close"].rolling(200).mean()
+    pie_data = pd.DataFrame({
+        "Type": ["High Avg", "Low Avg"],
+        "Value": [
+            filtered_df["High"].mean(),
+            filtered_df["Low"].mean()
+        ]
+    })
 
-fig_ma = go.Figure()
+    fig_pie = px.pie(
+        pie_data,
+        names="Type",
+        values="Value",
+        template="plotly_dark"
+    )
 
-fig_ma.add_trace(go.Scatter(
-    x=ma_df["Date"], y=ma_df["Close"],
-    mode='lines', name='Close Price'
-))
+    st.plotly_chart(fig_pie, use_container_width=True)
 
-fig_ma.add_trace(go.Scatter(
-    x=ma_df["Date"], y=ma_df["MA50"],
-    mode='lines', name='MA50'
-))
+    st.subheader("📅 Date Range")
 
-fig_ma.add_trace(go.Scatter(
-    x=ma_df["Date"], y=ma_df["MA200"],
-    mode='lines', name='MA200'
-))
-
-fig_ma.update_layout(template="plotly_dark", height=500)
-
-st.plotly_chart(fig_ma, use_container_width=True)
-
-# -------------------- CANDLESTICK --------------------
-
-st.subheader("🕯️ Candlestick Chart")
-
-fig_candle = go.Figure(data=[go.Candlestick(
-    x=ma_df["Date"],
-    open=ma_df["Open"],
-    high=ma_df["High"],
-    low=ma_df["Low"],
-    close=ma_df["Close"]
-)])
-
-fig_candle.update_layout(template="plotly_dark", height=500)
-
-st.plotly_chart(fig_candle, use_container_width=True)
-
-# -------------------- VOLUME --------------------
-
-st.subheader("📊 Volume Analysis")
-
-fig_volume = px.bar(
-    ma_df,
-    x="Date",
-    y="Volume",
-    template="plotly_dark"
-)
-
-st.plotly_chart(fig_volume, use_container_width=True)
+    st.write("Start:", filtered_df["Date"].min().date())
+    st.write("End:", filtered_df["Date"].max().date())
