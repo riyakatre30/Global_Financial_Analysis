@@ -6,7 +6,7 @@ import os
 
 st.set_page_config(page_title="Global Trading Dashboard",
                    layout="wide",
-                   page_icon="📊")
+                   page_icon="📈")
 
 # -------------------- LOAD DATA --------------------
 
@@ -20,9 +20,9 @@ def load_data():
 
 df = load_data()
 
-# -------------------- SIDEBAR --------------------
+# -------------------- SIDEBAR FILTERS --------------------
 
-st.sidebar.title("🌍 Market Selector")
+st.sidebar.title("🌍 Market Filters")
 
 country = st.sidebar.selectbox(
     "Select Country",
@@ -38,10 +38,38 @@ company = st.sidebar.selectbox(
 
 filtered_df = filtered_country[filtered_country["Company"] == company]
 
+# ---- DATE RANGE IN SIDEBAR ----
+
+min_date = filtered_df["Date"].min()
+max_date = filtered_df["Date"].max()
+
+start_date = st.sidebar.date_input(
+    "Start Date",
+    value=min_date,
+    min_value=min_date,
+    max_value=max_date
+)
+
+end_date = st.sidebar.date_input(
+    "End Date",
+    value=max_date,
+    min_value=min_date,
+    max_value=max_date
+)
+
+filtered_df = filtered_df[
+    (filtered_df["Date"] >= pd.to_datetime(start_date)) &
+    (filtered_df["Date"] <= pd.to_datetime(end_date))
+]
+
+if filtered_df.empty:
+    st.warning("No data available for selected date range.")
+    st.stop()
+
 # -------------------- HEADER --------------------
 
-st.title(f"📈 {company} Stock Dashboard")
-st.markdown(f"#### Country: {country}")
+st.title(f"📊 {company} Stock Dashboard")
+st.markdown(f"### {country} Market")
 
 # -------------------- KPI CARDS --------------------
 
@@ -50,50 +78,48 @@ col1, col2, col3, col4 = st.columns(4)
 latest_price = filtered_df["Close"].iloc[-1]
 high_price = filtered_df["High"].max()
 low_price = filtered_df["Low"].min()
-avg_price = filtered_df["Close"].mean()
+change = ((filtered_df["Close"].iloc[-1] -
+           filtered_df["Close"].iloc[0]) /
+           filtered_df["Close"].iloc[0]) * 100
 
-col1.metric("💰 Latest Price", f"{latest_price:.2f}")
-col2.metric("🔼 Highest", f"{high_price:.2f}")
-col3.metric("🔽 Lowest", f"{low_price:.2f}")
-col4.metric("📊 Average", f"{avg_price:.2f}")
+col1.metric("💰 Latest", f"{latest_price:.2f}")
+col2.metric("🔼 High", f"{high_price:.2f}")
+col3.metric("🔽 Low", f"{low_price:.2f}")
+col4.metric("📈 Change %", f"{change:.2f}%")
 
-# -------------------- MAIN DASHBOARD LAYOUT --------------------
+# -------------------- MAIN DASHBOARD --------------------
 
-left_col, right_col = st.columns([2, 1])
+left, right = st.columns([3, 1])
 
-# ---------- PRICE CHART (Google Style) ----------
-with left_col:
+# ---------- IMPROVED LINE CHART ----------
+with left:
 
-    chart_type = st.radio("Chart Type", ["Line Chart", "Candlestick"], horizontal=True)
+    fig = go.Figure()
 
-    if chart_type == "Line Chart":
-        fig = px.line(
-            filtered_df,
-            x="Date",
-            y="Close",
-            template="plotly_dark"
-        )
-    else:
-        fig = go.Figure(data=[go.Candlestick(
-            x=filtered_df["Date"],
-            open=filtered_df["Open"],
-            high=filtered_df["High"],
-            low=filtered_df["Low"],
-            close=filtered_df["Close"]
-        )])
+    fig.add_trace(go.Scatter(
+        x=filtered_df["Date"],
+        y=filtered_df["Close"],
+        mode="lines",
+        line=dict(width=3),
+        name="Close Price"
+    ))
 
-        fig.update_layout(template="plotly_dark")
+    fig.update_layout(
+        template="plotly_dark",
+        height=500,
+        xaxis_rangeslider_visible=False,
+        hovermode="x unified"
+    )
 
-    fig.update_layout(height=500)
     st.plotly_chart(fig, use_container_width=True)
 
-# ---------- PIE CHART SECTION ----------
-with right_col:
+# ---------- SMALL PIE CHART ----------
+with right:
 
-    st.subheader("📌 Price Distribution")
+    st.subheader("Price Split")
 
     pie_data = pd.DataFrame({
-        "Type": ["High Avg", "Low Avg"],
+        "Category": ["High Avg", "Low Avg"],
         "Value": [
             filtered_df["High"].mean(),
             filtered_df["Low"].mean()
@@ -102,14 +128,12 @@ with right_col:
 
     fig_pie = px.pie(
         pie_data,
-        names="Type",
+        names="Category",
         values="Value",
+        hole=0.5,   # donut style (modern look)
         template="plotly_dark"
     )
 
+    fig_pie.update_layout(height=350)
+
     st.plotly_chart(fig_pie, use_container_width=True)
-
-    st.subheader("📅 Date Range")
-
-    st.write("Start:", filtered_df["Date"].min().date())
-    st.write("End:", filtered_df["Date"].max().date())
