@@ -35,11 +35,11 @@ filtered_country = df[df["Country"].isin(country)]
 
 stock = st.sidebar.multiselect(
     "Select Company",
-    options=filtered_country["Stock"].unique(),
-    default=filtered_country["Stock"].unique()[:3]
+    options=filtered_country["Company"].unique(),
+    default=filtered_country["Company"].unique()[:3]
 )
 
-filtered_df = filtered_country[filtered_country["Stock"].isin(stock)]
+filtered_df = filtered_country[filtered_country["Company"].isin(stock)]
 
 start_date = st.sidebar.date_input(
     "Start Date",
