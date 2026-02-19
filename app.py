@@ -100,9 +100,9 @@ st.plotly_chart(fig, use_container_width=True)
 
 st.subheader("📉 Moving Average")
 
-ma_stock = st.selectbox("Select Stock for MA", filtered_df["Stock"].unique())
+ma_stock = st.selectbox("Select Stock for MA", filtered_df["Company"].unique())
 
-ma_df = filtered_df[filtered_df["Stock"] == ma_stock].copy()
+ma_df = filtered_df[filtered_df["Company"] == ma_stock].copy()
 
 ma_df["MA50"] = ma_df["Close"].rolling(50).mean()
 ma_df["MA200"] = ma_df["Close"].rolling(200).mean()
