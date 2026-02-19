@@ -4,9 +4,25 @@ import plotly.graph_objects as go
 import plotly.express as px
 import os
 
-st.set_page_config(page_title="Stock Analysis Dashboard",
+st.set_page_config(page_title="Global Stock Trading Dashboard",
                    layout="wide",
                    page_icon="📈")
+
+# ---------------- STYLE ----------------
+st.markdown("""
+<style>
+.big-font {
+    font-size:28px !important;
+    font-weight:600;
+}
+.metric-card {
+    background-color:#111111;
+    padding:15px;
+    border-radius:10px;
+    text-align:center;
+}
+</style>
+""", unsafe_allow_html=True)
 
 # ---------------- LOAD DATA ----------------
 @st.cache_data
@@ -20,18 +36,18 @@ def load_data():
 
 df = load_data()
 
-# ---------------- SIDEBAR ----------------
-st.sidebar.title("📌 Select Stock")
+# ---------------- SIDEBAR FILTERS ----------------
+st.sidebar.title("📌 Filters")
 
 country = st.sidebar.selectbox(
-    "Select Country",
+    "Country",
     sorted(df["Country"].dropna().unique())
 )
 
 country_df = df[df["Country"] == country]
 
 company = st.sidebar.selectbox(
-    "Select Company",
+    "Company",
     sorted(country_df["Company"].dropna().unique())
 )
 
@@ -49,63 +65,84 @@ if filtered_df.empty:
     st.warning("No data available")
     st.stop()
 
-# ---------------- HEADER ----------------
+# ---------------- HEADER (FIXED TOP) ----------------
 latest_price = filtered_df["Close"].iloc[-1]
 first_price = filtered_df["Close"].iloc[0]
-change = latest_price - first_price
-percent = (change / first_price) * 100
+percent = ((latest_price - first_price) / first_price) * 100
 
-st.title(company)
-st.caption(f"{country} Market")
+st.markdown(
+    f"<div class='big-font'>📈 {company} ({country})</div>",
+    unsafe_allow_html=True
+)
 
 if percent >= 0:
-    st.markdown(f"### ₹ {latest_price:.2f}  🔼  {percent:.2f}%")
+    st.markdown(f"### ₹ {latest_price:.2f}  🔼 {percent:.2f}%")
 else:
-    st.markdown(f"### ₹ {latest_price:.2f}  🔽  {percent:.2f}%")
+    st.markdown(f"### ₹ {latest_price:.2f}  🔽 {percent:.2f}%")
 
-# ---------------- KPI CARDS ----------------
-col1, col2, col3 = st.columns(3)
+st.markdown("---")
 
-col1.metric("Highest Price", f"{filtered_df['High'].max():.2f}")
-col2.metric("Lowest Price", f"{filtered_df['Low'].min():.2f}")
-col3.metric("Total Volume", f"{int(filtered_df['Volume'].sum())}")
+# ---------------- KPI + CHART LAYOUT ----------------
+left_col, right_col = st.columns([2,1])
 
-# ---------------- CHART TYPE ----------------
-chart_type = st.radio(
-    "Chart View",
-    ["Line", "Candlestick"],
-    horizontal=True
-)
+with left_col:
 
-fig = go.Figure()
+    chart_type = st.radio(
+        "Chart Type",
+        ["Line", "Candlestick"],
+        horizontal=True
+    )
 
-if chart_type == "Line":
-    fig.add_trace(go.Scatter(
-        x=filtered_df["Date"],
-        y=filtered_df["Close"],
-        mode='lines',
-        name='Close Price'
-    ))
-else:
-    fig.add_trace(go.Candlestick(
-        x=filtered_df["Date"],
-        open=filtered_df["Open"],
-        high=filtered_df["High"],
-        low=filtered_df["Low"],
-        close=filtered_df["Close"],
-        name="Candlestick"
-    ))
+    fig = go.Figure()
 
-fig.update_layout(
-    template="plotly_dark",
-    height=500,
-    xaxis_rangeslider_visible=False
-)
+    if chart_type == "Line":
+        fig.add_trace(go.Scatter(
+            x=filtered_df["Date"],
+            y=filtered_df["Close"],
+            mode='lines',
+            name='Close'
+        ))
+    else:
+        fig.add_trace(go.Candlestick(
+            x=filtered_df["Date"],
+            open=filtered_df["Open"],
+            high=filtered_df["High"],
+            low=filtered_df["Low"],
+            close=filtered_df["Close"],
+            name="Candle"
+        ))
 
-st.plotly_chart(fig, use_container_width=True)
+    fig.update_layout(
+        template="plotly_dark",
+        height=450,
+        margin=dict(l=20, r=20, t=30, b=20)
+    )
 
-# ---------------- VOLUME CHART ----------------
-st.subheader("Volume Analysis")
+    st.plotly_chart(fig, use_container_width=True)
+
+with right_col:
+
+    st.markdown("### 📊 Key Metrics")
+
+    high_price = filtered_df["High"].max()
+    low_price = filtered_df["Low"].min()
+    total_volume = int(filtered_df["Volume"].sum())
+
+    st.metric("Highest Price", f"{high_price:.2f}")
+    st.metric("Lowest Price", f"{low_price:.2f}")
+    st.metric("Total Volume", f"{total_volume:,}")
+
+    st.markdown("### 📌 Market Insight")
+
+    if percent > 0:
+        st.success("Stock is in upward trend.")
+    elif percent < 0:
+        st.error("Stock is in downward trend.")
+    else:
+        st.info("Stock is stable.")
+
+# ---------------- VOLUME (COMPACT BELOW) ----------------
+st.markdown("---")
 
 fig_volume = px.bar(
     filtered_df,
@@ -114,16 +151,6 @@ fig_volume = px.bar(
     template="plotly_dark"
 )
 
-fig_volume.update_layout(height=300)
+fig_volume.update_layout(height=250, margin=dict(l=20, r=20, t=20, b=20))
 
 st.plotly_chart(fig_volume, use_container_width=True)
-
-# ---------------- SIMPLE ANALYSIS ----------------
-st.subheader("Quick Insight")
-
-if percent > 0:
-    st.success("Stock is showing upward trend in selected period.")
-elif percent < 0:
-    st.error("Stock is showing downward trend in selected period.")
-else:
-    st.info("Stock price is stable in selected period.")
