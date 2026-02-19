@@ -11,16 +11,16 @@ st.set_page_config(page_title="Global Trading Dashboard",
 
 @st.cache_data
 def load_data():
-    india = pd.read_csv("Global_Financial_Analysis/Stock_NS.csv")
-    usa = pd.read_csv("Global_Financial_Analysis/Stock_USA.csv")
-    canada = pd.read_csv("Global_Financial_Analysis/Stock_Canada.csv")
-    germany = pd.read_csv("Global_Financial_Analysis/Stock_Germany.csv")
-    france = pd.read_csv("Global_Financial_Analysis/Stock_France.csv")
-    shanghai = pd.read_csv("Global_Financial_Analysis/Stock_Shanghai.csv")
-    hongkong = pd.read_csv("Global_Financial_Analysis/Stock_HK.csv")
-    london = pd.read_csv("Global_Financial_Analysis/Stock_L.csv")
-    tokyo = pd.read_csv("Global_Financial_Analysis/Stock_Tokyo.csv")
-    australia = pd.read_csv("Global_Financial_Analysis/Stock_Australia.csv")
+    india = pd.read_csv("Stock_NS.csv")
+    usa = pd.read_csv("Stock_USA.csv")
+    canada = pd.read_csv("Stock_Canada.csv")
+    germany = pd.read_csv("Stock_Germany.csv")
+    france = pd.read_csv("Stock_France.csv")
+    shanghai = pd.read_csv("Stock_Shanghai.csv")
+    hongkong = pd.read_csv("Stock_HK.csv")
+    london = pd.read_csv("Stock_L.csv")
+    tokyo = pd.read_csv("Stock_Tokyo.csv")
+    australia = pd.read_csv("Stock_Australia.csv")
 
     india["Country"] = "India"
     usa["Country"] = "USA"
