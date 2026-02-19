@@ -4,11 +4,11 @@ import plotly.graph_objects as go
 import plotly.express as px
 import os
 
-st.set_page_config(page_title="Global Trading Dashboard",
+st.set_page_config(page_title="Stock Dashboard",
                    layout="wide",
                    page_icon="📈")
 
-# -------------------- LOAD DATA --------------------
+# ---------------- LOAD DATA ----------------
 
 @st.cache_data
 def load_data():
@@ -20,41 +20,23 @@ def load_data():
 
 df = load_data()
 
-# -------------------- SIDEBAR FILTERS --------------------
+# ---------------- SIDEBAR FILTER ----------------
 
-st.sidebar.title("🌍 Market Filters")
+st.sidebar.title("🔎 Select Market")
 
-country = st.sidebar.selectbox(
-    "Select Country",
-    df["Country"].unique()
-)
-
+country = st.sidebar.selectbox("Country", df["Country"].unique())
 filtered_country = df[df["Country"] == country]
 
-company = st.sidebar.selectbox(
-    "Select Company",
-    filtered_country["Company"].unique()
-)
-
+company = st.sidebar.selectbox("Company", filtered_country["Company"].unique())
 filtered_df = filtered_country[filtered_country["Company"] == company]
 
-# ---- DATE RANGE IN SIDEBAR ----
-
+# Date Filter
 min_date = filtered_df["Date"].min()
 max_date = filtered_df["Date"].max()
 
-start_date = st.sidebar.date_input(
-    "Start Date",
-    value=min_date,
-    min_value=min_date,
-    max_value=max_date
-)
-
-end_date = st.sidebar.date_input(
-    "End Date",
-    value=max_date,
-    min_value=min_date,
-    max_value=max_date
+start_date, end_date = st.sidebar.date_input(
+    "Date Range",
+    [min_date, max_date]
 )
 
 filtered_df = filtered_df[
@@ -63,77 +45,130 @@ filtered_df = filtered_df[
 ]
 
 if filtered_df.empty:
-    st.warning("No data available for selected date range.")
+    st.warning("No data available.")
     st.stop()
 
-# -------------------- HEADER --------------------
-
-st.title(f"📊 {company} Stock Dashboard")
-st.markdown(f"### {country} Market")
-
-# -------------------- KPI CARDS --------------------
-
-col1, col2, col3, col4 = st.columns(4)
+# ---------------- HEADER ----------------
 
 latest_price = filtered_df["Close"].iloc[-1]
-high_price = filtered_df["High"].max()
-low_price = filtered_df["Low"].min()
 change = ((filtered_df["Close"].iloc[-1] -
            filtered_df["Close"].iloc[0]) /
            filtered_df["Close"].iloc[0]) * 100
 
-col1.metric("💰 Latest", f"{latest_price:.2f}")
-col2.metric("🔼 High", f"{high_price:.2f}")
-col3.metric("🔽 Low", f"{low_price:.2f}")
-col4.metric("📈 Change %", f"{change:.2f}%")
+st.title(company)
+st.subheader(f"{country} Market")
 
-# -------------------- MAIN DASHBOARD --------------------
+st.metric("Current Price", f"{latest_price:.2f}",
+          f"{change:.2f}%")
 
-left, right = st.columns([3, 1])
+# ---------------- TABS ----------------
 
-# ---------- IMPROVED LINE CHART ----------
-with left:
+tab1, tab2, tab3, tab4 = st.tabs(
+    ["📊 Overview", "📈 Chart", "🏆 Compare", "📉 Analysis"]
+)
 
-    fig = go.Figure()
+# ====================================================
+# OVERVIEW TAB
+# ====================================================
 
-    fig.add_trace(go.Scatter(
-        x=filtered_df["Date"],
-        y=filtered_df["Close"],
-        mode="lines",
-        line=dict(width=3),
-        name="Close Price"
-    ))
+with tab1:
 
-    fig.update_layout(
-        template="plotly_dark",
-        height=500,
-        xaxis_rangeslider_visible=False,
-        hovermode="x unified"
-    )
+    col1, col2, col3 = st.columns(3)
 
+    col1.metric("High", f"{filtered_df['High'].max():.2f}")
+    col2.metric("Low", f"{filtered_df['Low'].min():.2f}")
+    col3.metric("Average", f"{filtered_df['Close'].mean():.2f}")
+
+# ====================================================
+# CHART TAB
+# ====================================================
+
+with tab2:
+
+    chart_type = st.radio("Select Chart Type",
+                          ["Line", "Bar", "Candlestick"],
+                          horizontal=True)
+
+    if chart_type == "Line":
+        fig = px.line(filtered_df,
+                      x="Date",
+                      y="Close",
+                      template="plotly_dark")
+
+    elif chart_type == "Bar":
+        fig = px.bar(filtered_df,
+                     x="Date",
+                     y="Close",
+                     template="plotly_dark")
+
+    else:
+        fig = go.Figure(data=[go.Candlestick(
+            x=filtered_df["Date"],
+            open=filtered_df["Open"],
+            high=filtered_df["High"],
+            low=filtered_df["Low"],
+            close=filtered_df["Close"]
+        )])
+        fig.update_layout(template="plotly_dark")
+
+    fig.update_layout(height=500, hovermode="x unified")
     st.plotly_chart(fig, use_container_width=True)
 
-# ---------- SMALL PIE CHART ----------
-with right:
+# ====================================================
+# COMPARE TAB
+# ====================================================
 
-    st.subheader("Price Split")
+with tab3:
 
-    pie_data = pd.DataFrame({
-        "Category": ["High Avg", "Low Avg"],
-        "Value": [
-            filtered_df["High"].mean(),
-            filtered_df["Low"].mean()
-        ]
-    })
-
-    fig_pie = px.pie(
-        pie_data,
-        names="Category",
-        values="Value",
-        hole=0.5,   # donut style (modern look)
-        template="plotly_dark"
+    compare_companies = st.multiselect(
+        "Compare With",
+        filtered_country["Company"].unique()
     )
 
-    fig_pie.update_layout(height=350)
+    compare_df = filtered_country[
+        filtered_country["Company"].isin(compare_companies)
+    ]
 
-    st.plotly_chart(fig_pie, use_container_width=True)
+    if not compare_df.empty:
+
+        fig = px.line(compare_df,
+                      x="Date",
+                      y="Close",
+                      color="Company",
+                      template="plotly_dark")
+
+        fig.update_layout(height=500)
+        st.plotly_chart(fig, use_container_width=True)
+
+    # Top Performer
+    st.subheader("Top Performer")
+
+    perf = (
+        filtered_country.groupby("Company")["Close"]
+        .agg(["first", "last"])
+    )
+
+    perf["% Change"] = ((perf["last"] - perf["first"])
+                        / perf["first"]) * 100
+
+    top_company = perf["% Change"].idxmax()
+    top_value = perf["% Change"].max()
+
+    st.success(f"🏆 {top_company} is leading with {top_value:.2f}% growth")
+
+# ====================================================
+# ANALYSIS TAB
+# ====================================================
+
+with tab4:
+
+    st.subheader("Price Insights")
+
+    max_price = filtered_df["High"].max()
+    min_price = filtered_df["Low"].min()
+
+    st.write(f"🔼 Highest Recorded Price: {max_price:.2f}")
+    st.write(f"🔽 Lowest Recorded Price: {min_price:.2f}")
+
+    volatility = filtered_df["Close"].std()
+    st.write(f"📊 Volatility (Std Dev): {volatility:.2f}")
